@@ -13,26 +13,117 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../config/color/color.dart';
 
-class QiblaFinderScreen extends StatelessWidget {
+class QiblaFinderScreen extends StatefulWidget {
   const QiblaFinderScreen({super.key});
+
+  @override
+  State<QiblaFinderScreen> createState() => _QiblaFinderScreenState();
+}
+
+class _QiblaFinderScreenState extends State<QiblaFinderScreen> {
+  bool _hasPermission = false;
+  bool _isChecking = true;
+  String _errorMessage = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    setState(() {
+      _isChecking = true;
+      _errorMessage = "";
+    });
+
+    try {
+      final status = await FlutterQiblah.checkLocationStatus();
+
+      if (!status.enabled) {
+        setState(() {
+          _isChecking = false;
+          _errorMessage =
+              "Please enable Location (GPS) in your device settings.";
+        });
+        return;
+      }
+
+      if (status.status == LocationPermission.denied) {
+        await FlutterQiblah.requestPermissions();
+        final newStatus = await FlutterQiblah.checkLocationStatus();
+        if (newStatus.status == LocationPermission.denied ||
+            newStatus.status == LocationPermission.deniedForever) {
+          setState(() {
+            _isChecking = false;
+            _errorMessage = "Location permission is required to find Qibla.";
+          });
+          return;
+        }
+      } else if (status.status == LocationPermission.deniedForever) {
+        setState(() {
+          _isChecking = false;
+          _errorMessage =
+              "Location permission is denied forever. Please enable from app settings.";
+        });
+        return;
+      }
+
+      setState(() {
+        _hasPermission = true;
+        _isChecking = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isChecking = false;
+        _errorMessage = "Error checking location: $e";
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          title: const Text("Qibla Finder"),
-        ),
-        body: const Center(
-            child: QiblahCompassWidget1(
-          compassAssetPath: 'assets/images/compass.svg',
-          needleAssetPath: 'assets/images/needle.svg',
-          kaabaAssetPath: 'assets/icons/kaaba.svg',
-          // size: 320,
-          kaabaSize: 56,
-        ),)
-        // body: Center(child: QiblahCompass())
-        );
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text("Qibla Finder"),
+      ),
+      body: _isChecking
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.location_off,
+                            size: 50, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text(
+                          _errorMessage,
+                          textAlign: TextAlign.center,
+                          style:
+                              const TextStyle(fontSize: 16, color: Colors.red),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _checkPermissions,
+                          child: const Text("Retry"),
+                        )
+                      ],
+                    ),
+                  ),
+                )
+              : const Center(
+                  child: QiblahCompassWidget1(
+                    compassAssetPath: 'assets/images/compass.svg',
+                    needleAssetPath: 'assets/images/needle.svg',
+                    kaabaAssetPath: 'assets/icons/kaaba.svg',
+                    kaabaSize: 56,
+                  ),
+                ),
+    );
   }
 }
 
@@ -72,6 +163,16 @@ class QiblahCompassWidget1 extends StatelessWidget {
     return StreamBuilder<QiblahDirection>(
       stream: FlutterQiblah.qiblahStream,
       builder: (_, AsyncSnapshot<QiblahDirection> snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              "Error: ${snapshot.error.toString()}",
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }

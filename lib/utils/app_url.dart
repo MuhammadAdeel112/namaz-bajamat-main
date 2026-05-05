@@ -1,5 +1,5 @@
 class AppUrl {
-  static const _baseUrl = 'http://18.138.130.255:4000';
+  static const _baseUrl = 'https://namaz.wideworldofproperty.com';
   static const imamSignupEP = '$_baseUrl/api/imam/signup';
   static const visitorSignupEP = '$_baseUrl/api/visitor/signup';
   static const imamLoginEP = '$_baseUrl/api/imam/signin';
